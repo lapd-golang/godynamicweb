@@ -163,6 +163,33 @@ func (webApp *WebApp) DeleteServerConnector(connectorName string) error {
 	return webApp.server.RemoveConnector(connectorName)
 }
 
+func (webApp *WebApp) CreateServerManagementConnector(connectorName string, connectorConfig server.ConnectorConfig) error {
+	if webApp.status != StatusSlotReservation && webApp.status != StatusRunning {
+		return fmt.Errorf(TRACE + " WebApp AddServerConnector: statusMustBeStatusSlotReservationOrStatusRunning")
+	}
+	webApp.status = StatusRunning
+
+	mux := mux.NewRouter()
+	if err := webApp.server.AddConnector(connectorName, connectorConfig, mux, getCertificate); err != nil {
+		return err
+	}
+	mux.HandleFunc("/", webApp.retrieveServerHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/", webApp.deleteServerHandler).Methods(http.MethodDelete)
+	mux.HandleFunc("/connectors", webApp.listServerConnectorsHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/connectors/{connectorName}", webApp.createOrReplaceServerConnectorHandler).Methods(http.MethodPut)
+	mux.HandleFunc("/connectors/{connectorName}", webApp.retrieveServerConnectorHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/connectors/{connectorName}", webApp.deleteServerConnectorHandler).Methods(http.MethodDelete)
+	mux.HandleFunc("/tenants", webApp.listTenantsHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/tenants/{tenantId}", webApp.createOrReplaceTenantHandler).Methods(http.MethodPut)
+	mux.HandleFunc("/tenants/{tenantId}", webApp.retrieveTenantHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/tenants/{tenantId}", webApp.deleteTenantHandler).Methods(http.MethodDelete)
+	mux.HandleFunc("/x509/{x509Cn}", webApp.createOrReplaceTenantHandler).Methods(http.MethodPut)
+	mux.HandleFunc("/x509/{x509Cn}", webApp.retrieveTenantHandler).Methods(http.MethodGet)
+	mux.HandleFunc("/x509/{x509Cn}", webApp.deleteTenantHandler).Methods(http.MethodDelete)
+
+	return nil
+}
+
 func (webApp *WebApp) WaitForTheEnd() error {
 	if webApp.status != StatusSlotReservation && webApp.status != StatusRunning {
 		return fmt.Errorf(TRACE + " WebApp WaitForTheEnd: statusMustBeStatusSlotReservationOrStatusRunning")
@@ -172,6 +199,14 @@ func (webApp *WebApp) WaitForTheEnd() error {
 	result := webApp.server.WaitForTheEnd()
 	webApp.status = StatusStopped
 	return result
+}
+
+func (webApp *WebApp) addX509Certificate(pKey, cert []byte) error {
+	certKeyPair, err := tls.X509KeyPair(cert, pKey)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (webApp *WebApp) CreateTenant(tenantID string, config multitenancy.TenantConfig) error {
@@ -209,33 +244,6 @@ func (webApp *WebApp) DeleteTenant(tenantID string) error {
 	webApp.status = StatusRunning
 
 	return webApp.multiTenancySupport.RemoveTenant(tenantID)
-}
-
-func (webApp *WebApp) CreateServerManagementConnector(connectorName string, connectorConfig server.ConnectorConfig) error {
-	if webApp.status != StatusSlotReservation && webApp.status != StatusRunning {
-		return fmt.Errorf(TRACE + " WebApp AddServerConnector: statusMustBeStatusSlotReservationOrStatusRunning")
-	}
-	webApp.status = StatusRunning
-
-	mux := mux.NewRouter()
-	if err := webApp.server.AddConnector(connectorName, connectorConfig, mux, getCertificate); err != nil {
-		return err
-	}
-	mux.HandleFunc("/", webApp.retrieveServerHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/", webApp.deleteServerHandler).Methods(http.MethodDelete)
-	mux.HandleFunc("/connectors", webApp.listServerConnectorsHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/connectors/{connectorName}", webApp.createOrReplaceServerConnectorHandler).Methods(http.MethodPut)
-	mux.HandleFunc("/connectors/{connectorName}", webApp.retrieveServerConnectorHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/connectors/{connectorName}", webApp.deleteServerConnectorHandler).Methods(http.MethodDelete)
-	mux.HandleFunc("/tenants", webApp.listTenantsHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/tenants/{tenantId}", webApp.createOrReplaceTenantHandler).Methods(http.MethodPut)
-	mux.HandleFunc("/tenants/{tenantId}", webApp.retrieveTenantHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/tenants/{tenantId}", webApp.deleteTenantHandler).Methods(http.MethodDelete)
-	mux.HandleFunc("/x509/{x509Cn}", webApp.createOrReplaceTenantHandler).Methods(http.MethodPut)
-	mux.HandleFunc("/x509/{x509Cn}", webApp.retrieveTenantHandler).Methods(http.MethodGet)
-	mux.HandleFunc("/x509/{x509Cn}", webApp.deleteTenantHandler).Methods(http.MethodDelete)
-
-	return nil
 }
 
 func getCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {

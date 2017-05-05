@@ -1,6 +1,8 @@
 package x509
 
-import "crypto/tls"
+import "fmt"
+
+const TRACE = "github.com/riotemergence/x509"
 
 type X509Config struct {
 	PKey []byte `json:"pkey"`
@@ -8,9 +10,11 @@ type X509Config struct {
 }
 
 func (x509Config X509Config) Validate() error {
-	_, err := tls.X509KeyPair(x509Config.Cert, x509Config.PKey)
-	if err != nil {
-		return err
+	if x509Config.PKey == nil {
+		return fmt.Errorf(TRACE + " X509Config PKey: required")
+	}
+	if x509Config.Cert == nil {
+		return fmt.Errorf(TRACE + " X509Config Cert: required")
 	}
 	return nil
 }

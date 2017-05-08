@@ -25,25 +25,6 @@ type Connector struct {
 	Server              *http.Server
 }
 
-// // Setup HTTPS client
-// tlsConfig := &tls.Config{
-// 	ClientCAs: caCertPool,
-// 	// NoClientCert
-// 	// RequestClientCert
-// 	// RequireAnyClientCert
-// 	// VerifyClientCertIfGiven
-// 	// RequireAndVerifyClientCert
-// 	ClientAuth: tls.RequireAndVerifyClientCert,
-// }
-// tlsConfig.BuildNameToCertificate()
-
-// server := &http.Server{
-// 	Addr:      ":8080",
-// 	TLSConfig: tlsConfig,
-// }
-
-// server.ListenAndServeTLS("selfsigned.crt", "selfsigned.key") //private cert
-
 // ief, err := net.InterfaceByName("eth1")
 // if err != nil {
 // 	log.Fatal(err)
@@ -78,7 +59,11 @@ func (s *Server) AddConnector(connectorName string, config ConnectorConfig, mux 
 		return fmt.Errorf(TRACE + " AddConnector connectorName: alreadyExists")
 	}
 
-	var tlsConfig *tls.Config = nil
+	tlsConfig := &tls.Config{
+		GetCertificate: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return nil, nil
+		},
+	}
 
 	connectorServerAddr := string(*config.BindAddress) + ":" + strconv.Itoa(int(*config.Port))
 	connectorServer := &http.Server{
@@ -131,6 +116,68 @@ func (s *Server) AddConnector(connectorName string, config ConnectorConfig, mux 
 	(*s.Config.Connectors)[connectorName] = config
 	return nil
 }
+
+// func (c *Config) getCertificate(clientHello *ClientHelloInfo) (*Certificate, error) {
+// 	if c.GetCertificate != nil &&
+// 		(len(c.Certificates) == 0 || len(clientHello.ServerName) > 0) {
+// 		cert, err := c.GetCertificate(clientHello)
+// 		if cert != nil || err != nil {
+// 			return cert, err
+// 		}
+// 	}
+
+// 	if len(c.Certificates) == 0 {
+// 		return nil, errors.New("crypto/tls: no certificates configured")
+// 	}
+
+// 	if len(c.Certificates) == 1 || c.NameToCertificate == nil {
+// 		// There's only one choice, so no point doing any work.
+// 		return &c.Certificates[0], nil
+// 	}
+
+// 	name := strings.ToLower(clientHello.ServerName)
+// 	for len(name) > 0 && name[len(name)-1] == '.' {
+// 		name = name[:len(name)-1]
+// 	}
+
+// 	if cert, ok := c.NameToCertificate[name]; ok {
+// 		return cert, nil
+// 	}
+
+// 	// try replacing labels in the name with wildcards until we get a
+// 	// match.
+// 	labels := strings.Split(name, ".")
+// 	for i := range labels {
+// 		labels[i] = "*"
+// 		candidate := strings.Join(labels, ".")
+// 		if cert, ok := c.NameToCertificate[candidate]; ok {
+// 			return cert, nil
+// 		}
+// 	}
+
+// 	// If nothing matches, return the first certificate.
+// 	return &c.Certificates[0], nil
+// }
+
+// // BuildNameToCertificate parses c.Certificates and builds c.NameToCertificate
+// // from the CommonName and SubjectAlternateName fields of each of the leaf
+// // certificates.
+// func (c *Config) BuildNameToCertificate() {
+// 	c.NameToCertificate = make(map[string]*Certificate)
+// 	for i := range c.Certificates {
+// 		cert := &c.Certificates[i]
+// 		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+// 		if err != nil {
+// 			continue
+// 		}
+// 		if len(x509Cert.Subject.CommonName) > 0 {
+// 			c.NameToCertificate[x509Cert.Subject.CommonName] = cert
+// 		}
+// 		for _, san := range x509Cert.DNSNames {
+// 			c.NameToCertificate[san] = cert
+// 		}
+// 	}
+// }
 
 func (s *Server) RemoveConnector(connectorName string) error {
 	c, ok := s.RunningEndpointsConnectors[connectorName]

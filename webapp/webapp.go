@@ -2,6 +2,7 @@ package webapp
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 
@@ -55,8 +56,9 @@ type WebApp struct {
 	httpMethodByServerEndpointSlots map[string]string
 	clientEndpointsSlots            clientEndpointsSlots
 	server                          *server.Server
+	x509Certificates                []tls.Certificate
+	x509CertificateBySubjectName    map[string]tls.Certificate
 	multiTenancySupport             *multitenancy.MultiTenancySupport
-	managementConnectorName         string
 }
 
 func NewWebApp() *WebApp {
@@ -65,8 +67,10 @@ func NewWebApp() *WebApp {
 		serverEndpointsSlots:            make(serverEndpointsSlots),
 		httpMethodByServerEndpointSlots: make(map[string]string),
 		clientEndpointsSlots:            make(clientEndpointsSlots),
-		multiTenancySupport:             multitenancy.NewMultiTenancySupport(),
 		server:                          server.NewServer(),
+		x509Certificates:                make([]tls.Certificate, 0),
+		x509CertificateBySubjectName:    make(map[string]tls.Certificate),
+		multiTenancySupport:             multitenancy.NewMultiTenancySupport(),
 	}
 }
 
@@ -201,11 +205,37 @@ func (webApp *WebApp) WaitForTheEnd() error {
 	return result
 }
 
-func (webApp *WebApp) addX509Certificate(pKey, cert []byte) error {
-	certKeyPair, err := tls.X509KeyPair(cert, pKey)
+func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes []byte) error {
+	certificateChainAndPrivateKey, err := tls.X509KeyPair(certificateChainBytes, privateKeyBytes)
 	if err != nil {
 		return err
 	}
+
+	certificateBytes := certificateChainAndPrivateKey.Certificate[0]
+	x509Certificate, err := x509.ParseCertificate(certificateBytes)
+	if err != nil {
+		return err
+	}
+
+	commonName := x509Certificate.Subject.CommonName
+
+	if _, ok := webApp.x509CertificateBySubjectName[commonName]; ok {
+		fmt.Errorf(TRACE + " WebApp AddX509Certificate: statusMustBeStatusSlotReservationOrStatusRunning")
+	}
+
+	newX509CertificateBySubjectName := make(map[string]tls.Certificate)
+	for k, v := range webApp.x509CertificateBySubjectName {
+		newX509CertificateBySubjectName[k] = v
+	}
+
+	if len(x509Certificate.Subject.CommonName) > 0 {
+		newX509CertificateBySubjectName[x509Certificate.Subject.CommonName] = certificateChainAndPrivateKey
+	}
+	for _, subjectAlternativeName := range x509Certificate.DNSNames {
+		newX509CertificateBySubjectName[subjectAlternativeName] = certificateChainAndPrivateKey
+	}
+
+	//webApp.multiTenancySupport.
 	return nil
 }
 

@@ -166,6 +166,13 @@ func (c TenantConfig) Validate() error {
 	if c.Name == nil {
 		return fmt.Errorf(TRACE + " TenantConfig Name: required")
 	}
+
+	if c.X509 != nil {
+		if err := c.X509.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if c.ServerEndpoints == nil {
 		return fmt.Errorf(TRACE + " TenantConfig ServerEndpoints: required")
 	}

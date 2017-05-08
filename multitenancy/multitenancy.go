@@ -32,6 +32,8 @@ type TenantFileServerEndpoint struct {
 type MultiTenancySupport struct {
 	Config     MultiTenancyConfig
 	MuxCatalog *mux.MuxCatalog
+	//	x509Certificates            []x509.Certificate
+	//	x509CertificateByCommonName map[string]x509.Certificate
 }
 
 func NewMultiTenancySupport() *MultiTenancySupport {

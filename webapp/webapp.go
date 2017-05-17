@@ -206,6 +206,10 @@ func (webApp *WebApp) WaitForTheEnd() error {
 }
 
 func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes []byte) error {
+	if webApp.status != StatusSlotReservation && webApp.status != StatusRunning {
+		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: statusMustBeStatusSlotReservationOrStatusRunning")
+	}
+
 	certificateChainAndPrivateKey, err := tls.X509KeyPair(certificateChainBytes, privateKeyBytes)
 	if err != nil {
 		return err
@@ -219,10 +223,24 @@ func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes 
 
 	commonName := x509Certificate.Subject.CommonName
 
-	if _, ok := webApp.x509CertificateBySubjectName[commonName]; ok {
-		fmt.Errorf(TRACE + " WebApp AddX509Certificate: statusMustBeStatusSlotReservationOrStatusRunning")
+	if len(commonName) == 0 {
+		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: certificateChainBytes CertificateSubjectCommonNameMustNotBeEmpty")
 	}
 
+	if _, ok := webApp.x509CertificateBySubjectName[commonName]; ok {
+		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
+	}
+
+	for _, subjectAlternativeName := range x509Certificate.DNSNames {
+		if len(subjectAlternativeName) == 0 {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: certificateChainBytes CertificateSubjectAlternativeNameMustNotBeEmpty")
+		}
+		if _, ok := webApp.x509CertificateBySubjectName[subjectAlternativeName]; ok {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectAlternativeNameMustBeUnique")
+		}
+	}
+
+	//Copy all subject names.
 	newX509CertificateBySubjectName := make(map[string]tls.Certificate)
 	for k, v := range webApp.x509CertificateBySubjectName {
 		newX509CertificateBySubjectName[k] = v

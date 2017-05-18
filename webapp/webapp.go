@@ -56,9 +56,9 @@ type WebApp struct {
 	httpMethodByServerEndpointSlots map[string]string
 	clientEndpointsSlots            clientEndpointsSlots
 	server                          *server.Server
-	x509Certificates                []tls.Certificate
-	x509CertificateBySubjectName    map[string]tls.Certificate
-	multiTenancySupport             *multitenancy.MultiTenancySupport
+	//	x509Certificates                []tls.Certificate
+	x509CertificateBySubjectName map[string]tls.Certificate
+	multiTenancySupport          *multitenancy.MultiTenancySupport
 }
 
 func NewWebApp() *WebApp {
@@ -68,9 +68,9 @@ func NewWebApp() *WebApp {
 		httpMethodByServerEndpointSlots: make(map[string]string),
 		clientEndpointsSlots:            make(clientEndpointsSlots),
 		server:                          server.NewServer(),
-		x509Certificates:                make([]tls.Certificate, 0),
-		x509CertificateBySubjectName:    make(map[string]tls.Certificate),
-		multiTenancySupport:             multitenancy.NewMultiTenancySupport(),
+		//		x509Certificates:                make([]tls.Certificate, 0),
+		x509CertificateBySubjectName: make(map[string]tls.Certificate),
+		multiTenancySupport:          multitenancy.NewMultiTenancySupport(),
 	}
 }
 
@@ -231,6 +231,10 @@ func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes 
 		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
 	}
 
+	if _, ok := webApp.multiTenancySupport.GetCertificateChainAndPrivateKeyBySubjectName(commonName); ok {
+		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
+	}
+
 	for _, subjectAlternativeName := range x509Certificate.DNSNames {
 		if len(subjectAlternativeName) == 0 {
 			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: certificateChainBytes CertificateSubjectAlternativeNameMustNotBeEmpty")
@@ -238,6 +242,10 @@ func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes 
 		if _, ok := webApp.x509CertificateBySubjectName[subjectAlternativeName]; ok {
 			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectAlternativeNameMustBeUnique")
 		}
+		if _, ok := webApp.multiTenancySupport.GetCertificateChainAndPrivateKeyBySubjectName(subjectAlternativeName); ok {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
+		}
+
 	}
 
 	//Copy all subject names.
@@ -246,14 +254,11 @@ func (webApp *WebApp) AddX509Certificate(privateKeyBytes, certificateChainBytes 
 		newX509CertificateBySubjectName[k] = v
 	}
 
-	if len(x509Certificate.Subject.CommonName) > 0 {
-		newX509CertificateBySubjectName[x509Certificate.Subject.CommonName] = certificateChainAndPrivateKey
-	}
+	newX509CertificateBySubjectName[x509Certificate.Subject.CommonName] = certificateChainAndPrivateKey
 	for _, subjectAlternativeName := range x509Certificate.DNSNames {
 		newX509CertificateBySubjectName[subjectAlternativeName] = certificateChainAndPrivateKey
 	}
 
-	//webApp.multiTenancySupport.
 	return nil
 }
 

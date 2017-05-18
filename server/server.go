@@ -51,6 +51,18 @@ func NewServer() *Server {
 }
 
 func (s *Server) AddConnector(connectorName string, config ConnectorConfig, mux http.Handler, getCertificateFunc func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error)) error {
+	if len(connectorName) == 0 {
+		return fmt.Errorf(TRACE + " AddConnector connectorName: mustNotBeEmpty")
+	}
+
+	if len(connectorName) == 0 {
+		return fmt.Errorf(TRACE + " AddConnector connectorName: mustNotBeEmpty")
+	}
+
+	if getCertificateFunc == nil {
+		return fmt.Errorf(TRACE + " AddConnector getCertificateFunc: mustNotBeEmpty")
+	}
+
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -60,9 +72,7 @@ func (s *Server) AddConnector(connectorName string, config ConnectorConfig, mux 
 	}
 
 	tlsConfig := &tls.Config{
-		GetCertificate: func(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return nil, nil
-		},
+		GetCertificate: getCertificateFunc,
 	}
 
 	connectorServerAddr := string(*config.BindAddress) + ":" + strconv.Itoa(int(*config.Port))

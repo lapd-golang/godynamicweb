@@ -6,6 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	"crypto/tls"
+	"crypto/x509"
+
 	"github.com/riotemergence/godynamicweb/mux"
 )
 
@@ -32,8 +35,8 @@ type TenantFileServerEndpoint struct {
 type MultiTenancySupport struct {
 	Config     MultiTenancyConfig
 	MuxCatalog *mux.MuxCatalog
-	//	x509Certificates            []x509.Certificate
-	//	x509CertificateByCommonName map[string]x509.Certificate
+	//	x509Certificates            []tls.Certificate
+	x509CertificateBySubjectName map[string]tls.Certificate
 }
 
 func NewMultiTenancySupport() *MultiTenancySupport {
@@ -62,6 +65,43 @@ func (m *MultiTenancySupport) AddTenant(tenantID string, config TenantConfig, ht
 
 	if _, found := m.Config.Tenants[tenantID]; found {
 		return fmt.Errorf(TRACE+" MultiTenancySupport AddTenant tenantID: mustNotExist \"%s\"", tenantID)
+	}
+
+	if config.X509 != nil {
+		for _, x509 := range config.X509 {
+			if err := x509.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	certificateChainAndPrivateKey, err := tls.X509KeyPair(certificateChainBytes, privateKeyBytes)
+	if err != nil {
+		return err
+	}
+
+	certificateBytes := certificateChainAndPrivateKey.Certificate[0]
+	x509Certificate, err := x509.ParseCertificate(certificateBytes)
+	if err != nil {
+		return err
+	}
+
+	//config.X509.
+
+	if _, ok := m.x509CertificateBySubjectName(commonName); ok {
+		return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
+	}
+
+	for _, subjectAlternativeName := range x509Certificate.DNSNames {
+		if len(subjectAlternativeName) == 0 {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: certificateChainBytes CertificateSubjectAlternativeNameMustNotBeEmpty")
+		}
+		if _, ok := webApp.x509CertificateBySubjectName[subjectAlternativeName]; ok {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectAlternativeNameMustBeUnique")
+		}
+		if _, ok := webApp.multiTenancySupport.GetCertificateChainAndPrivateKeyBySubjectName(subjectAlternativeName); ok {
+			return fmt.Errorf(TRACE + " WebApp AddX509Certificate: CertificateSubjectCommonNameMustBeUnique")
+		}
 	}
 
 	TempMuxCatalog := *m.MuxCatalog
@@ -199,6 +239,11 @@ func (m *MultiTenancySupport) GetTenantIdAndEndpointName(connectorName string, r
 
 	return "", nil, false
 
+}
+
+func (m *MultiTenancySupport) GetCertificateChainAndPrivateKeyBySubjectName(subjectName string) (tls.Certificate, bool) {
+	certificate, ok := m.x509CertificateBySubjectName[subjectName]
+	return certificate, ok
 }
 
 func saneDirTerminator(s string) string {

@@ -152,7 +152,7 @@ func (c FileServerEndpointsConfig) Validate() error {
 
 type TenantConfig struct {
 	Name                  *string                      `json:"name"`
-	X509                  *x509.X509Config             `json:"x509"`
+	X509                  []x509.X509Config            `json:"x509"`
 	ServerEndpoints       *ServerEndpointsConfig       `json:"serverEndpoints"`
 	ReverseProxyEndpoints *ReverseProxyEndpointsConfig `json:"reverseProxyEndpoints"`
 	FileServerEndpoints   *FileServerEndpointsConfig   `json:"fileServerEndpoints"`
@@ -168,8 +168,10 @@ func (c TenantConfig) Validate() error {
 	}
 
 	if c.X509 != nil {
-		if err := c.X509.Validate(); err != nil {
-			return err
+		for _, x509 := range c.X509 {
+			if err := x509.Validate(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -189,6 +191,7 @@ func (c TenantConfig) Validate() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
